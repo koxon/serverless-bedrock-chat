@@ -11,7 +11,7 @@ Parameters:
   DeploymentBucketName:
     Type: String
     Description: Name of the bucket holding your API Lambda zip file
- 
+
 Resources:
   CognitoUserPool:
     Type: AWS::Cognito::UserPool
@@ -70,7 +70,6 @@ Resources:
         - Name: email
           Value: !Ref UserEmail
 
-
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -115,7 +114,7 @@ Resources:
             ResponsePagePath: /index.html
         HttpVersion: http2
         ViewerCertificate:
-          CloudFrontDefaultCertificate: 'true'
+          CloudFrontDefaultCertificate: "true"
         DefaultCacheBehavior:
           AllowedMethods:
             - DELETE
@@ -150,11 +149,11 @@ Resources:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
 
   APILogGroup:
-    Type: 'AWS::Logs::LogGroup'
+    Type: "AWS::Logs::LogGroup"
     Properties:
-      LogGroupName: !Sub '/aws/lambda/api'
+      LogGroupName: !Sub "/aws/lambda/api"
   IamRoleLambdaExecution:
-    Type: 'AWS::IAM::Role'
+    Type: "AWS::IAM::Role"
     Properties:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -164,10 +163,10 @@ Resources:
               Service:
                 - lambda.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
+              - "sts:AssumeRole"
       Policies:
-        - PolicyName: !Join 
-            - '-'
+        - PolicyName: !Join
+            - "-"
             - - api
               - lambda
           PolicyDocument:
@@ -175,39 +174,39 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogStream'
-                  - 'logs:CreateLogGroup'
-                  - 'logs:TagResource'
-                  - 'logs:PutLogEvents'
+                  - "logs:CreateLogStream"
+                  - "logs:CreateLogGroup"
+                  - "logs:TagResource"
+                  - "logs:PutLogEvents"
                 Resource:
                   - !Sub >-
                     arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/api*
               - Effect: Allow
                 Action:
-                  - 'bedrock:*'
+                  - "bedrock:*"
                 Resource:
-                  - '*'
+                  - "*"
               - Effect: Allow
                 Action:
-                  - 'execute-api:ManageConnections'
+                  - "execute-api:ManageConnections"
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:execute-api:*:*:*/@connections/*'
+                  - !Sub "arn:${AWS::Partition}:execute-api:*:*:*/@connections/*"
               - Effect: Allow
                 Action:
-                  - 'dynamodb:*'
+                  - "dynamodb:*"
                 Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/conversationhistory
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/bedrock_sessions
       Path: /
-      RoleName: !Join 
-        - '-'
+      RoleName: !Join
+        - "-"
         - - api
-          - !Ref 'AWS::Region'
+          - !Ref "AWS::Region"
           - lambdaRole
   APILambdaFunction:
-    Type: 'AWS::Lambda::Function'
+    Type: "AWS::Lambda::Function"
     Properties:
       Code:
-        S3Bucket: !Sub '${DeploymentBucketName}'
+        S3Bucket: !Sub "${DeploymentBucketName}"
         S3Key: >-
           api.zip
       Handler: src/index.handler
@@ -224,104 +223,104 @@ Resources:
           ISSUER: !Sub >-
             https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
           AUDIENCE: !Ref ClientAppClient
-          API_GW_ENDPOINT: !Join 
-            - ''
-            - - 'https://'
+          API_GW_ENDPOINT: !Join
+            - ""
+            - - "https://"
               - !Ref WebsocketsApi
               - .execute-api.
-              - !Ref 'AWS::Region'
+              - !Ref "AWS::Region"
               - .
-              - !Ref 'AWS::URLSuffix'
+              - !Ref "AWS::URLSuffix"
               - /dev
-      Role: !GetAtt 
+      Role: !GetAtt
         - IamRoleLambdaExecution
         - Arn
     DependsOn:
       - APILogGroup
 
   WebsocketsApi:
-      Type: 'AWS::ApiGatewayV2::Api'
-      Properties:
-        Name: chatbot-websocket-api
-        RouteSelectionExpression: $request.body.action
-        ProtocolType: WEBSOCKET
+    Type: "AWS::ApiGatewayV2::Api"
+    Properties:
+      Name: chatbot-websocket-api
+      RouteSelectionExpression: $request.body.action
+      ProtocolType: WEBSOCKET
   ApplicationWebsocketsIntegration:
-    Type: 'AWS::ApiGatewayV2::Integration'
+    Type: "AWS::ApiGatewayV2::Integration"
     Properties:
       ApiId: !Ref WebsocketsApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Join 
-        - ''
-        - - 'arn:'
-          - !Ref 'AWS::Partition'
-          - ':apigateway:'
-          - !Ref 'AWS::Region'
-          - ':lambda:path/2015-03-31/functions/'
-          - !GetAtt 
+      IntegrationUri: !Join
+        - ""
+        - - "arn:"
+          - !Ref "AWS::Partition"
+          - ":apigateway:"
+          - !Ref "AWS::Region"
+          - ":lambda:path/2015-03-31/functions/"
+          - !GetAtt
             - APILambdaFunction
             - Arn
           - /invocations
   ApplicationLambdaPermissionWebsockets:
-    Type: 'AWS::Lambda::Permission'
+    Type: "AWS::Lambda::Permission"
     DependsOn:
       - WebsocketsApi
       - APILambdaFunction
     Properties:
-      FunctionName: !GetAtt 
+      FunctionName: !GetAtt
         - APILambdaFunction
         - Arn
-      Action: 'lambda:InvokeFunction'
+      Action: "lambda:InvokeFunction"
       Principal: apigateway.amazonaws.com
 
   SconnectWebsocketsRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
+    Type: "AWS::ApiGatewayV2::Route"
     Properties:
       ApiId: !Ref WebsocketsApi
       RouteKey: $connect
       AuthorizationType: NONE
-      Target: !Join 
+      Target: !Join
         - /
         - - integrations
           - !Ref ApplicationWebsocketsIntegration
   SdisconnectWebsocketsRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
+    Type: "AWS::ApiGatewayV2::Route"
     Properties:
       ApiId: !Ref WebsocketsApi
       RouteKey: $disconnect
       AuthorizationType: NONE
-      Target: !Join 
+      Target: !Join
         - /
         - - integrations
           - !Ref ApplicationWebsocketsIntegration
   askWebsocketsRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
+    Type: "AWS::ApiGatewayV2::Route"
     Properties:
       ApiId: !Ref WebsocketsApi
       RouteKey: ask
       AuthorizationType: NONE
-      Target: !Join 
+      Target: !Join
         - /
         - - integrations
           - !Ref ApplicationWebsocketsIntegration
   SdefaultWebsocketsRoute:
-    Type: 'AWS::ApiGatewayV2::Route'
+    Type: "AWS::ApiGatewayV2::Route"
     Properties:
       ApiId: !Ref WebsocketsApi
       RouteKey: $default
       AuthorizationType: NONE
-      Target: !Join 
+      Target: !Join
         - /
         - - integrations
           - !Ref ApplicationWebsocketsIntegration
   WebsocketsDeploymentStage:
-    Type: 'AWS::ApiGatewayV2::Stage'
+    Type: "AWS::ApiGatewayV2::Stage"
     Properties:
       ApiId: !Ref WebsocketsApi
       StageName: dev
       Description: Serverless Websockets
       DeploymentId: !Ref WebsocketsDeployment
   WebsocketsDeployment:
-    Type: 'AWS::ApiGatewayV2::Deployment'
+    Type: "AWS::ApiGatewayV2::Deployment"
     DependsOn:
       - SconnectWebsocketsRoute
       - SdisconnectWebsocketsRoute
@@ -329,24 +328,22 @@ Resources:
       - SdefaultWebsocketsRoute
     Properties:
       ApiId: !Ref WebsocketsApi
-
-  ConversationTable:
-        Type: AWS::DynamoDB::Table
-        Properties:
-          TableName: conversationhistory
-          AttributeDefinitions:
-            - AttributeName: id
-              AttributeType: S
-          BillingMode: PAY_PER_REQUEST
-          KeySchema:
-            - AttributeName: id
-              KeyType: HASH
-          SSESpecification:
-            SSEEnabled: true
-          TimeToLiveSpecification:
-            AttributeName: ttl
-            Enabled: true
-
+  BedrockSessionTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: bedrock_sessions
+      AttributeDefinitions:
+        - AttributeName: connectionid
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: connectionid
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 Outputs:
   CognitoUserPoolID:
     Value: !Ref CognitoUserPool
@@ -359,14 +356,14 @@ Outputs:
     Description: The Cloudfront domain your app is hosted at
   ServiceEndpointWebsocket:
     Description: WSS URL of the service endpoint
-    Value: !Join 
-      - ''
-      - - 'wss://'
+    Value: !Join
+      - ""
+      - - "wss://"
         - !Ref WebsocketsApi
         - .execute-api.
-        - !Ref 'AWS::Region'
+        - !Ref "AWS::Region"
         - .
-        - !Ref 'AWS::URLSuffix'
+        - !Ref "AWS::URLSuffix"
         - /dev
     Export:
       Name: ServiceEndpointWebsocket
